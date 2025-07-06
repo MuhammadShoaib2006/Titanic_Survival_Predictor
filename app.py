@@ -1,31 +1,36 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import pandas as pd
 import pickle
 
 app = Flask(__name__)
+CORS(app)
 
-# Load the model
 with open('model.pkl', 'rb') as f:
     model = pickle.load(f)
 
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
-        # Get data from request
         data = request.get_json()
         
-        # Convert to DataFrame with correct feature order
+        required_fields = ['Pclass', 'Sex', 'Age', 'SibSp', 'Parch', 'Fare', 'Embarked']
+        if not all(field in data for field in required_fields):
+            return jsonify({
+                'status': 'error',
+                'message': 'Missing required fields'
+            }), 400
+        
         input_data = pd.DataFrame([{
-            'Pclass': data['Pclass'],
-            'Sex': data['Sex'],
-            'Age': data['Age'],
-            'SibSp': data['SibSp'],
-            'Parch': data['Parch'],
-            'Fare': data['Fare'],
-            'Embarked': data['Embarked']
+            'Pclass': int(data['Pclass']),
+            'Sex': int(data['Sex']),
+            'Age': float(data['Age']),
+            'SibSp': int(data['SibSp']),
+            'Parch': int(data['Parch']),
+            'Fare': float(data['Fare']),
+            'Embarked': int(data['Embarked'])
         }])
         
-        # Make prediction
         prediction = model.predict(input_data)[0]
         
         return jsonify({
@@ -34,11 +39,17 @@ def predict():
             'message': '1 = Survived, 0 = Did not survive'
         })
     
+    except ValueError as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Invalid data format: {str(e)}'
+        }), 400
+        
     except Exception as e:
         return jsonify({
             'status': 'error',
-            'message': str(e)
-        })
+            'message': f'Prediction failed: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
